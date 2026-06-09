@@ -8,10 +8,12 @@
 
 #[path = "../drawing.rs"]
 mod drawing;
+#[path = "../minecraft/mod.rs"]
+mod minecraft;
+#[path = "../net/mod.rs"]
+mod net;
 #[path = "../oled.rs"]
 mod oled;
-#[path = "../wifi.rs"]
-mod wifi;
 
 use drawing::ResourceUsage;
 use embassy_executor::Spawner;
@@ -69,12 +71,18 @@ async fn main(spawner: Spawner) -> ! {
         esp_radio::wifi::new(peripherals.WIFI, Default::default())
             .expect("Failed to initialize Wi-Fi controller");
 
-    let stack = wifi::connect(spawner, &mut wifi_controller, interfaces).await;
+    let stack = net::wifi::connect(spawner, &mut wifi_controller, interfaces).await;
+
+    if let Some(stack) = stack {
+        spawner.spawn(
+            minecraft::server::task(stack).expect("failed to create Minecraft status server task"),
+        );
+    }
 
     let mut status_ticks = 0u32;
 
     loop {
-        let ip = wifi::ip_string(stack.as_ref());
+        let ip = net::wifi::ip_string(stack.as_ref());
         let usage = ResourceUsage::current();
 
         // Avoid flooding the serial log; the OLED still refreshes regularly.
