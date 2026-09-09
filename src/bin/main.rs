@@ -39,24 +39,8 @@ async fn main(spawner: Spawner) -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    // SSD1306 I2C wiring. Change these if your board uses different pins.
-    let mut display = oled::new(peripherals.I2C0, peripherals.GPIO6, peripherals.GPIO7);
-
-    // The following pins are used to bootstrap the chip. They are available
-    // for use, but check the datasheet of the module for more information on them.
-    // - GPIO4
-    // - GPIO5
-    // - GPIO8
-    // - GPIO9
-    // - GPIO15
-    // These GPIO pins are in use by some feature of the module and should not be used.
-    let _ = peripherals.GPIO24;
-    let _ = peripherals.GPIO25;
-    let _ = peripherals.GPIO26;
-    let _ = peripherals.GPIO27;
-    let _ = peripherals.GPIO28;
-    let _ = peripherals.GPIO29;
-    let _ = peripherals.GPIO30;
+    // Seeed XIAO ESP32S3: D4 = SDA (GPIO5), D5 = SCL (GPIO6).
+    let mut display = oled::new(peripherals.I2C0, peripherals.GPIO5, peripherals.GPIO6);
 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 65536);
 

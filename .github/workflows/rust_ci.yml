@@ -21,20 +21,23 @@ jobs:
       matrix:
         action:
           - command: build
-            args: --release
-          - command: fmt
+            args: --release --locked
+          - command: +stable fmt
             args: --all -- --check
           - command: clippy
-            args: --all-features --workspace -- -D warnings
+            args: --all-features --workspace --locked -- -D warnings
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@v1
         with:
-          target: riscv32imac-unknown-none-elf
           toolchain: stable
-          components: rust-src, rustfmt, clippy
+          components: rustfmt
+      - name: Setup Xtensa Rust
+        uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          buildtargets: esp32s3
       - name: Enable caching
         uses: Swatinem/rust-cache@v2
       - name: Run command

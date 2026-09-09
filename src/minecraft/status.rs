@@ -20,7 +20,7 @@ pub const PROTOCOL_VERSION: i32 = match option_env!("MINECRAFT_PROTOCOL_VERSION"
 
 pub const MAX_PLAYERS: u32 = 1;
 pub const ONLINE_PLAYERS: u32 = 0;
-pub const MOTD: &str = "Microcraft ESP32-C6";
+pub const MOTD: &str = "Microcraft XIAO ESP32-S3";
 
 const fn parse_i32(value: &str) -> i32 {
     let bytes = value.as_bytes();
@@ -35,7 +35,10 @@ const fn parse_i32(value: &str) -> i32 {
 
     while index < bytes.len() {
         let byte = bytes[index];
-        assert!(byte >= b'0' && byte <= b'9', "invalid MINECRAFT_PROTOCOL_VERSION");
+        assert!(
+            byte >= b'0' && byte <= b'9',
+            "invalid MINECRAFT_PROTOCOL_VERSION"
+        );
         out = out * 10 + (byte - b'0') as i32;
         index += 1;
     }
