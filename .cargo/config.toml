@@ -1,15 +1,14 @@
 [target.xtensa-esp32s3-none-elf]
 runner = "espflash flash --monitor --chip esp32s3"
-
-[env]
-ESP_LOG="info"
-
-[build]
 rustflags = [
   # esp-hal provides startup code; do not link the GCC startup files.
   "-C", "link-arg=-nostartfiles",
 ]
 
+[env]
+ESP_LOG="info"
+
+[build]
 target = "xtensa-esp32s3-none-elf"
 
 [unstable]

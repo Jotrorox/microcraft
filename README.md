@@ -46,6 +46,8 @@ Connect the SSD1306 at its default I2C address, `0x3c`:
 
 These are the board's [documented I2C pins](https://wiki.seeedstudio.com/xiao_esp32s3_getting_started/).
 The firmware continues without the OLED if display initialization fails.
+Display transfers use async I2C, and unchanged status values skip the refresh.
+Three consecutive transfer failures disable the display until the next boot.
 It uses internal RAM; external PSRAM, the Sense camera, and the SD card are
 not initialized.
 
@@ -79,10 +81,45 @@ Java Edition multiplayer server list. The advertised version/protocol can be
 overridden with `MINECRAFT_VERSION` and `MINECRAFT_PROTOCOL_VERSION` at build
 time.
 
+The version must contain 1–64 UTF-8 bytes (at most 128 bytes after JSON
+escaping), and the protocol must be an integer from 0 to 2147483647. Invalid
+overrides fail compilation. Quotes, backslashes, and control characters in
+version strings are escaped in the status response.
+
+Wi-Fi connects in the background and retries failures with a 1–30 second
+exponential backoff. After a disconnect it reconnects automatically. While
+DHCP retries, the OLED continues to show connection status; a missing lease
+is logged every 30 seconds. If Wi-Fi drops during DHCP acquisition, recovery
+can take up to that interval. An empty `WIFI_PASSWORD` selects an open network.
+
+The listener serves one client at a time, with a ten-second total exchange
+deadline and up to two seconds of bounded socket cleanup. Slow clients cannot
+extend the exchange by sending occasional bytes. The response is prepared
+once, and fixed packet buffers are reused without heap allocation.
+
 ## Checks
 
 ```sh
 cargo +stable fmt --all -- --check
+cargo +stable test -p microcraft-protocol --target x86_64-unknown-linux-gnu --locked
+python3 scripts/check_config.py
 cargo build --release --locked
 cargo clippy --all-features --workspace --locked -- -D warnings
 ```
+
+The `microcraft-protocol` workspace crate runs on the host without the Espressif
+toolchain. On another host architecture, replace `x86_64-unknown-linux-gnu`
+with the host triple from `rustc +stable -vV`. Its regression tests cover TCP
+fragmentation/coalescing, packet limits, malformed input, status-only clients,
+exact ping echoes, transport failures, and JSON serialization. CI runs these
+tests and checks that invalid build-time overrides fail compilation.
+
+Firmware retains the 1 KiB Clippy stack-frame threshold. Packet and network
+storage are static; only main and one-time OLED construction/initialization
+have documented exceptions for fixed framebuffer and driver state. Clippy
+estimates do not replace measuring stack high-water usage on the board.
+
+After flashing, exercise repeated server-list refreshes, a client that leaves
+its side open after receiving a pong, a slow/incomplete handshake, an AP
+restart, missing DHCP, and an absent/disconnected OLED. These need real
+hardware; host protocol tests do not validate the radio or I2C driver.

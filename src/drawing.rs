@@ -6,6 +6,7 @@ use embedded_graphics::primitives::{PrimitiveStyle, Rectangle};
 use embedded_graphics::text::Text;
 use heapless::String;
 
+#[derive(PartialEq, Eq)]
 pub struct ResourceUsage {
     pub heap_used: usize,
     pub heap_free: usize,
@@ -30,11 +31,7 @@ impl ResourceUsage {
 
     pub fn heap_percent(&self) -> usize {
         let total = self.heap_used + self.heap_free;
-        if total == 0 {
-            0
-        } else {
-            self.heap_used * 100 / total
-        }
+        (self.heap_used * 100).checked_div(total).unwrap_or(0)
     }
 }
 
@@ -44,23 +41,30 @@ where
 {
     display.clear(BinaryColor::Off)?;
 
-    let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
-    Text::new("Microcraft", Point::new(0, 10), style).draw(display)?;
-
-    let mut ip_line: String<48> = String::new();
-    let _ = core::fmt::write(&mut ip_line, format_args!("IP: {ip}"));
-    Text::new(&ip_line, Point::new(0, 24), style).draw(display)?;
-
+    draw_line(display, 10, format_args!("Microcraft"))?;
+    draw_line(display, 24, format_args!("IP: {ip}"))?;
     let heap_percent = usage.heap_percent().min(100);
+    draw_line(display, 36, format_args!("Heap: {heap_percent}%"))?;
+    draw_line(display, 48, format_args!("Free: {} B", usage.heap_free))?;
+    draw_bar(display, heap_percent)
+}
 
-    let mut heap_line: String<48> = String::new();
-    let _ = core::fmt::write(&mut heap_line, format_args!("Heap: {heap_percent}%"));
-    Text::new(&heap_line, Point::new(0, 36), style).draw(display)?;
+fn draw_line<D: DrawTarget<Color = BinaryColor>>(
+    display: &mut D,
+    y: i32,
+    args: core::fmt::Arguments<'_>,
+) -> Result<(), D::Error> {
+    let mut line = String::<32>::new();
+    core::fmt::write(&mut line, args).expect("status line fits 32 bytes");
+    let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
+    Text::new(&line, Point::new(0, y), style).draw(display)?;
+    Ok(())
+}
 
-    let mut free_line: String<48> = String::new();
-    let _ = core::fmt::write(&mut free_line, format_args!("Free: {} B", usage.heap_free));
-    Text::new(&free_line, Point::new(0, 48), style).draw(display)?;
-
+fn draw_bar<D: DrawTarget<Color = BinaryColor>>(
+    display: &mut D,
+    heap_percent: usize,
+) -> Result<(), D::Error> {
     let bar_width = 120u32;
     let inner_width = bar_width - 2;
     let fill_width = inner_width * heap_percent as u32 / 100;

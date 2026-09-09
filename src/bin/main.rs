@@ -21,7 +21,7 @@ use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::timer::timg::TimerGroup;
-use log::info;
+use log::{info, warn};
 
 extern crate alloc;
 
@@ -39,9 +39,6 @@ async fn main(spawner: Spawner) -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    // Seeed XIAO ESP32S3: D4 = SDA (GPIO5), D5 = SCL (GPIO6).
-    let mut display = oled::new(peripherals.I2C0, peripherals.GPIO5, peripherals.GPIO6);
-
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 65536);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
@@ -51,11 +48,10 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("Embassy initialized!");
 
-    let (mut wifi_controller, interfaces) =
-        esp_radio::wifi::new(peripherals.WIFI, Default::default())
-            .expect("Failed to initialize Wi-Fi controller");
+    let (wifi_controller, interfaces) = esp_radio::wifi::new(peripherals.WIFI, Default::default())
+        .expect("Failed to initialize Wi-Fi controller");
 
-    let stack = net::wifi::connect(spawner, &mut wifi_controller, interfaces).await;
+    let stack = net::wifi::start(spawner, wifi_controller, interfaces);
 
     if let Some(stack) = stack {
         spawner.spawn(
@@ -63,6 +59,15 @@ async fn main(spawner: Spawner) -> ! {
         );
     }
 
+    // Seeed XIAO ESP32S3: D4 = SDA (GPIO5), D5 = SCL (GPIO6).
+    let mut display = oled::new(peripherals.I2C0, peripherals.GPIO5, peripherals.GPIO6);
+    let mut display = if oled::initialize(&mut display).await {
+        Some(display)
+    } else {
+        None
+    };
+    let mut previous_status = None;
+    let mut display_failures = 0;
     let mut status_ticks = 0u32;
 
     loop {
@@ -70,7 +75,7 @@ async fn main(spawner: Spawner) -> ! {
         let usage = ResourceUsage::current();
 
         // Avoid flooding the serial log; the OLED still refreshes regularly.
-        if status_ticks % 5 == 0 {
+        if status_ticks.is_multiple_of(5) {
             info!(
                 "IP address: {}, heap used={} B, heap free={} B, heap used={}%,",
                 ip,
@@ -81,9 +86,26 @@ async fn main(spawner: Spawner) -> ! {
         }
         status_ticks = status_ticks.wrapping_add(1);
 
-        if let Some(display) = display.as_mut() {
-            drawing::draw_status(display, &ip, &usage).ok();
-            display.flush().ok();
+        let changed = previous_status
+            .as_ref()
+            .is_none_or(|(old_ip, old_usage)| old_ip != &ip || old_usage != &usage);
+        if changed && let Some(oled) = display.as_mut() {
+            // Drawing only changes RAM; the async transfer yields to networking.
+            drawing::draw_status(oled, &ip, &usage).expect("framebuffer drawing is infallible");
+            match oled.flush().await {
+                Ok(()) => {
+                    previous_status = Some((ip, usage));
+                    display_failures = 0;
+                }
+                Err(err) => {
+                    display_failures += 1;
+                    warn!("OLED refresh failed ({display_failures}/3): {err:?}");
+                    if display_failures >= 3 {
+                        warn!("Disabling OLED after repeated transfer failures");
+                        display = None;
+                    }
+                }
+            }
         }
 
         Timer::after(Duration::from_secs(2)).await;

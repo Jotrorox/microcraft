@@ -4,11 +4,16 @@ name         = "microcraft"
 rust-version = "1.88"
 version      = "0.1.0"
 
+[workspace]
+members = ["crates/microcraft-protocol"]
+resolver = "3"
+
 [[bin]]
 name = "microcraft"
 path = "./src/bin/main.rs"
 
 [dependencies]
+microcraft-protocol = { path = "crates/microcraft-protocol" }
 esp-hal = { version = "~1.1.0", features = ["esp32s3", "log-04", "unstable"] }
 
 esp-rtos = { version = "0.3.0", features = [
@@ -27,10 +32,7 @@ embassy-net = { version = "0.9.1", features = [
   "log",
   "medium-ethernet",
   "tcp",
-  "udp",
 ] }
-embedded-io = "0.7.1"
-embedded-io-async = "0.7.0"
 esp-alloc = "0.10.0"
 esp-backtrace = { version = "0.19.0", features = [
   "esp32s3",
@@ -48,25 +50,10 @@ esp-radio = { version = "0.18.0", features = [
   "unstable",
   "wifi",
 ] }
-smoltcp = { version = "0.13.0", default-features = false, features = [
-  "log",
-  "medium-ethernet",
-  "multicast",
-  "proto-dhcpv4",
-  "proto-dns",
-  "proto-ipv4",
-  "socket-dns",
-  "socket-icmp",
-  "socket-raw",
-  "socket-tcp",
-  "socket-udp",
-] }
-
-critical-section = "1.2.0"
 static_cell      = "2.1.1"
 embedded-graphics = "0.8.1"
 heapless = "0.8.0"
-ssd1306 = "0.10.0"
+ssd1306 = { version = "0.10.0", features = ["async"] }
 
 
 # For fine tuning these settings, please refer to https://doc.rust-lang.org/cargo/reference/profiles.html
